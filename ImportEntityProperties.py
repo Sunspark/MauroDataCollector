@@ -148,42 +148,21 @@ def err_and_die(err, message):
   logger.critical('Execution ends')
   sys.exit(err)
 
-#####################################################################
-## Actual program
-#####################################################################
+def build_files_to_process():
+  logger.debug("build_files_to_process")
+  files_to_process = []
+  for root, subFolders, files in os.walk(args.incoming_dir):
+    logger.debug("root : " + str(root))
+    logger.debug("subFolders : " + str(subFolders))
+    logger.debug("files : " + str(files))
+    for filename in files:
+      logger.debug("current filename : " + str(filename))
+      if (filename.endswith(".csv")):
+        logger.debug("added!")
+        files_to_process.append(filename)
+    break # break here to not traverse the directory tree
+  return files_to_process
 
-logger.info('Execution begins')
-print("fish")
-
-
-logger.debug('Requested file: ' + args.incoming_file)
-logger.debug('Requested directory: ' + args.incoming_dir)
-
-# Get the CSV, and spin it to a list of tuples.
-srcpath = args.incoming_dir
-target_filename = args.incoming_file
-target_fullpath = os.path.join(srcpath, target_filename)
-
-logger.info("Attempting to open: '" + target_fullpath + "'")
-
-try:
-  with open(target_fullpath) as csv_in:
-    incoming_rows = [list(line) for line in csv.reader(csv_in)]
-
-except FileNotFoundError as err:
-  err_and_die(err, 'File Not Found: ' + target_fullpath)
-
-
-headers = incoming_rows.pop(0) # Take the header row off
-logger.info("Count of incoming rows: " + str(len(incoming_rows)))
-
-logger.debug("headers:")
-logger.debug(headers)
-headers_count = len(headers)
-logger.info("Count of incoming headers: " + str(headers_count))
-logger.info(headers)
-
-# Check we have unique headers
 # https://stackoverflow.com/questions/9835762/how-do-i-find-the-duplicates-in-a-list-and-create-another-list-with-them
 def list_duplicates(list_to_parse):
   logger.debug('list_duplicates')
@@ -194,50 +173,99 @@ def list_duplicates(list_to_parse):
   logger.debug(seen_twice)
   return seen_twice
 
-duplicate_headers = list_duplicates(headers)
-logger.debug(len(duplicate_headers))
-if (len(duplicate_headers) > 0) :
-  logger.error("Duplicate vaules:")
-  logger.error(duplicate_headers)
-  crit_and_die('Duplicate vaules found in incoming file header row. Consider namespacing.')
+def make_null(v):
+  if ((v.upper() == 'NULL') or (v == '')):
+    return None
+  else:
+    return v  
+
+#####################################################################
+## Actual program
+#####################################################################
+
+logger.info('Execution begins')
+print("fish")
 
 
-# Check we have pre-req fields in the CSV (or args)
-# https://stackoverflow.com/questions/7571635/fastest-way-to-check-if-a-value-exists-in-a-list
+logger.debug('Requested file: ' + str(args.incoming_file))
+logger.debug('Requested directory: ' + args.incoming_dir)
 
-if not (('db' in headers) or (args.db)):
-  crit_and_die("Essential header 'db' not found in incoming file.")
 
-if not (('table' in headers) or (args.table)):
-  crit_and_die("Essential header 'table' not found in incoming file.")
+# Get files to process
+files_to_process = []
+if (args.incoming_file):
+  files_to_process.append(args.incoming_file)
+else:
+  files_to_process = build_files_to_process()
 
-if not (('field' in headers) or (args.field)):
-  crit_and_die("Essential header 'field' not found in incoming file.")
+logger.info('Files to process count: ' + str(len(files_to_process)))
+logger.debug('Files to process:')
+logger.debug(files_to_process)
 
-# Process incoming rows
-for incoming_row in incoming_rows:
-  logger.debug('Process incoming row:')
-  logger.debug(incoming_row)
 
-  # Check field count is the same as headers.
-  row_field_count = len(incoming_row)
-  logger.debug('Row item count: ' + str(row_field_count))
-  if (headers_count != row_field_count) : # Potential additional functionality here to not crit and die.
-    crit_and_die("Row item count did not match header count.")
+for target_filename in files_to_process:
 
-  row_dict = dict(zip(headers, incoming_row))
-  logger.debug("Pre-nulling row dictionary:")
-  logger.debug(row_dict)
+  # Get the CSV, and spin it to a list of lists.
+  target_fullpath = os.path.join(args.incoming_dir, target_filename)
 
-  def make_null(v):
-    if ((v.upper() == 'NULL') or (v == '')):
-      return None
-    else:
-      return v
+  logger.info("Attempting to open: '" + target_fullpath + "'")
 
-  row_dict = dict((k, make_null(v)) for k, v in row_dict.items())
-  logger.debug("Post-nulling row dictionary:")
-  logger.debug(row_dict)
+  try:
+    with open(target_fullpath) as csv_in:
+      incoming_rows = [list(line) for line in csv.reader(csv_in)]
+
+  except FileNotFoundError as err:
+    err_and_die(err, 'File Not Found: ' + target_fullpath)
+
+
+  headers = incoming_rows.pop(0) # Take the header row off
+  logger.info("Count of incoming rows: " + str(len(incoming_rows)))
+
+  logger.debug("headers:")
+  logger.debug(headers)
+  headers_count = len(headers)
+  logger.info("Count of incoming headers: " + str(headers_count))
+  logger.info(headers)
+
+  # Check we have unique headers
+  duplicate_headers = list_duplicates(headers)
+  logger.debug(len(duplicate_headers))
+  if (len(duplicate_headers) > 0) :
+    logger.error("Duplicate vaules:")
+    logger.error(duplicate_headers)
+    crit_and_die('Duplicate vaules found in incoming file header row. Consider namespacing.')
+
+
+  # Check we have pre-req fields in the CSV (or args)
+  # https://stackoverflow.com/questions/7571635/fastest-way-to-check-if-a-value-exists-in-a-list
+
+  if not (('db' in headers) or (args.db)):
+    crit_and_die("Essential header 'db' not found in incoming file.")
+
+  if not (('table' in headers) or (args.table)):
+    crit_and_die("Essential header 'table' not found in incoming file.")
+
+  if not (('field' in headers) or (args.field)):
+    crit_and_die("Essential header 'field' not found in incoming file.")
+
+  # Process incoming rows
+  for incoming_row in incoming_rows:
+    logger.debug('Process incoming row:')
+    logger.debug(incoming_row)
+
+    # Check field count is the same as headers.
+    row_field_count = len(incoming_row)
+    logger.debug('Row item count: ' + str(row_field_count))
+    if (headers_count != row_field_count) : # Potential additional functionality here to not crit and die.
+      crit_and_die("Row item count did not match header count.")
+
+    row_dict = dict(zip(headers, incoming_row))
+    logger.debug("Pre-nulling row dictionary:")
+    logger.debug(row_dict)
+
+    row_dict = dict((k, make_null(v)) for k, v in row_dict.items())
+    logger.debug("Post-nulling row dictionary:")
+    logger.debug(row_dict)
 
 
 
