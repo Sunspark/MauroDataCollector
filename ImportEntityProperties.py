@@ -92,7 +92,7 @@ fileGroup.add_argument(
 
 
 # -w --delete-word Sets a string that causes the property value to be 'deleted' (set to null). Default '##delete##'.
-# -n --delete-null Sets processing to to set property values to null (delete them) when a null value is encountered. Default behaviour is to ignore incoming null values (retain any existing values, and not add null-value properties).
+# -n --delete-null Sets processing to to set property values to null when a null value is encountered. Default behaviour is to ignore incoming null values (retain any existing values, and not add null-value properties).
 # -b --always-branch Sets processing to always create a new branch of an entity when importing a file. Default behaviour is to Update current branch if 'draft', create a new branch if 'finalised'.
 
 # -u --mauro-url Sets URL of the Mauro API
@@ -179,9 +179,9 @@ logger.info("Count of incoming rows: " + str(len(incoming_rows)))
 
 logger.debug("headers:")
 logger.debug(headers)
-headers_count = str(len(headers))
-logger.info("Count of incoming headers: " + headers_count)
-logger.debug(headers)
+headers_count = len(headers)
+logger.info("Count of incoming headers: " + str(headers_count))
+logger.info(headers)
 
 # Check we have unique headers
 # https://stackoverflow.com/questions/9835762/how-do-i-find-the-duplicates-in-a-list-and-create-another-list-with-them
@@ -218,9 +218,32 @@ if not (('field' in headers) or (args.field)):
 for incoming_row in incoming_rows:
   logger.debug('Process incoming row:')
   logger.debug(incoming_row)
+
+  # Check field count is the same as headers.
   row_field_count = len(incoming_row)
   logger.debug('Row item count: ' + str(row_field_count))
-  if headers_count != row_field_count: # Potential additional functionality here to not crit and die.
+  if (headers_count != row_field_count) : # Potential additional functionality here to not crit and die.
     crit_and_die("Row item count did not match header count.")
 
+  row_dict = dict(zip(headers, incoming_row))
+  logger.debug("Pre-nulling row dictionary:")
+  logger.debug(row_dict)
+
+  def make_null(v):
+    if ((v.upper() == 'NULL') or (v == '')):
+      return None
+    else:
+      return v
+
+  row_dict = dict((k, make_null(v)) for k, v in row_dict.items())
+  logger.debug("Post-nulling row dictionary:")
+  logger.debug(row_dict)
+
+
+
+
+
+
 logger.info('Execution ends')
+
+
