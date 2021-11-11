@@ -134,6 +134,21 @@ if args.verbose:
   logger.addHandler(c_handler)
 
 #####################################################################
+## Handle exiting
+#####################################################################
+
+def crit_and_die(message):
+  logger.critical(message)
+  logger.critical('Execution ends')
+  sys.exit(message)
+
+def err_and_die(err, message):
+  logger.exception(err)
+  logger.critical(message)
+  logger.critical('Execution ends')
+  sys.exit(err)
+
+#####################################################################
 ## Actual program
 #####################################################################
 
@@ -156,10 +171,7 @@ try:
     incoming_rows = [list(line) for line in csv.reader(csv_in)]
 
 except FileNotFoundError as err:
-  logger.critical('File Not Found: ' + target_fullpath)
-  logger.exception(err)
-  logger.critical('Execution ends')
-  raise
+  err_and_die(err, 'File Not Found: ' + target_fullpath)
 
 
 headers = incoming_rows.pop(0) # Take the header row off
@@ -185,33 +197,30 @@ def list_duplicates(list_to_parse):
 duplicate_headers = list_duplicates(headers)
 logger.debug(len(duplicate_headers))
 if (len(duplicate_headers) > 0) :
-  message = 'Duplicate vaules found in incoming file header row. Consider namespacing.'
-  logger.critical(message)
   logger.error("Duplicate vaules:")
   logger.error(duplicate_headers)
-  logger.critical('Execution ends')
-  sys.exit(message)
+  crit_and_die('Duplicate vaules found in incoming file header row. Consider namespacing.')
+
 
 # Check we have pre-req fields in the CSV (or args)
 # https://stackoverflow.com/questions/7571635/fastest-way-to-check-if-a-value-exists-in-a-list
 
 if not (('db' in headers) or (args.db)):
-  message = "Essential header 'db' not found in incoming file."
-  logger.critical(message)
-  logger.critical('Execution ends')
-  sys.exit(message)
+  crit_and_die("Essential header 'db' not found in incoming file.")
 
 if not (('table' in headers) or (args.table)):
-  message = "Essential header 'table' not found in incoming file."
-  logger.critical(message)
-  logger.critical('Execution ends')
-  sys.exit(message)
+  crit_and_die("Essential header 'table' not found in incoming file.")
 
 if not (('field' in headers) or (args.field)):
-  message = "Essential header 'field' not found in incoming file."
-  logger.critical(message)
-  logger.critical('Execution ends')
-  sys.exit(message)  
+  crit_and_die("Essential header 'field' not found in incoming file.")
 
+# Process incoming rows
+for incoming_row in incoming_rows:
+  logger.debug('Process incoming row:')
+  logger.debug(incoming_row)
+  row_field_count = len(incoming_row)
+  logger.debug('Row item count: ' + str(row_field_count))
+  if headers_count != row_field_count: # Potential additional functionality here to not crit and die.
+    crit_and_die("Row item count did not match header count.")
 
 logger.info('Execution ends')
