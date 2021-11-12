@@ -22,6 +22,11 @@ Processing will treat a passed value of the string 'null' or a blank string '' i
 Column headers must be unique.
 '''
 
+# 'db' corresponds to 'Data Asset' at the 'Data Model' level in the UI. An unknown db will be created as a Data Asset. db name must be unique across all folders in the Mauro store.
+# 'schema' and 'table' correspond to 'Data Class' in the UI. These are hierachical, and must have unique names within the parent. If no schema is specified (null), the table will be created as a child of db.
+# 'field' corresponds to 'Data Element' in the UI. These must be unique within the parent class.
+# Will attempt to find the entity by name, and will pick the latest draft branch, or finalised if no drafts
+
 ap = argparse.ArgumentParser(
   description=help_text,
   epilog=textwrap.dedent(epilog_text)
@@ -148,6 +153,10 @@ def err_and_die(err, message):
   logger.critical('Execution ends')
   sys.exit(err)
 
+#####################################################################
+## Helper functions
+#####################################################################
+
 def build_files_to_process():
   logger.debug("build_files_to_process")
   files_to_process = []
@@ -222,14 +231,13 @@ for target_filename in files_to_process:
   logger.info("Count of incoming rows: " + str(len(incoming_rows)))
 
   logger.debug("headers:")
-  logger.debug(headers)
+  logger.info(headers)
   headers_count = len(headers)
   logger.info("Count of incoming headers: " + str(headers_count))
-  logger.info(headers)
 
   # Check we have unique headers
   duplicate_headers = list_duplicates(headers)
-  logger.debug(len(duplicate_headers))
+  logger.debug("Count of duplicate headers: " + str(len(duplicate_headers)))
   if (len(duplicate_headers) > 0) :
     logger.error("Duplicate vaules:")
     logger.error(duplicate_headers)
@@ -268,7 +276,35 @@ for target_filename in files_to_process:
     logger.debug(row_dict)
 
 
+    # UGH - this is going to end up being 'write a Mauro interface class'.
 
+    # goes to the API, and figures out the ID-based URL to target, as well as POST/ PUT.
+    # Returns dict {'target_url': target_url , 'http_method': (POST | PUT)}
+    # Note the http_method will never be DELETE, because 'delete' means null the value, not remove the entity.
+    #def get_api_target(db, schema, table, field):
+    #  return 1
+
+    api_key = ''
+    #{{base_url}}/dataModels/path/dm%3ATestyMcTestface%7Cdc%3Asimple%7Cde%3Asimple%20data%20element
+    api_base_url = 'http://localhost:8082/api'
+    # requests.utils.quote('test+user@gmail.com')
+    # {{base_url}}/dataModels/path/dm%3Amaurodatamapper%7Cdc%3Aapi_property << definitely exists
+    #api_url = api_base_url + '/dataModels/path/dm%3Amaurodatamapper%7Cdc%3Aapi_property' # << definitely exists
+    #api_url = api_base_url + '/dataModels/path/dm%3AFISH' # << definitely NOT exists
+    #api_url = api_base_url + requests.utils.quote('/dataModels/path/dm:maurodatamapper|dc:core|dc:annotation|de:last_updated') # << works and exists
+
+    api_headers = {
+      "apiKey" : api_key
+    }
+
+    r=requests.get(api_url, headers = api_headers)
+
+# Going to need to handle OK and not OK, as well as really not OK.
+# as well as checking the result to see if the API was lying....
+
+print(r.reason)
+print(r.status_code)
+print(r.text)
 
 
 
