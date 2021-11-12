@@ -4,10 +4,12 @@ import logging
 import datetime
 import csv
 import json
-import requests
+#import requests
 import os
 import re
 import sys
+
+from MauroAPIInterface import MauroAPIInterface
 
 #####################################################################
 ## Argument Parsing
@@ -293,18 +295,26 @@ for target_filename in files_to_process:
     #api_url = api_base_url + '/dataModels/path/dm%3AFISH' # << definitely NOT exists
     #api_url = api_base_url + requests.utils.quote('/dataModels/path/dm:maurodatamapper|dc:core|dc:annotation|de:last_updated') # << works and exists
 
-    api_headers = {
-      "apiKey" : api_key
-    }
+    mapi = MauroAPIInterface(api_base_url)
 
-    r=requests.get(api_url, headers = api_headers)
+    print(mapi.api_key)
+    mapi.api_key = 'fish'
+    print(mapi.api_key)
+    print(mapi._api_key_header)
+    print(mapi.get_headers_for_get())
+    r = mapi.call('dataModel/fish/&chips', 'GET')
 
-# Going to need to handle OK and not OK, as well as really not OK.
-# as well as checking the result to see if the API was lying....
+    # Going to need to handle OK and not OK, as well as really not OK.
+    # as well as checking the result to see if the API was lying....
 
-print(r.reason)
-print(r.status_code)
-print(r.text)
+    print(r.reason)
+    print(r.status_code)
+    print(r.text)
+
+
+
+
+
 
 
 
