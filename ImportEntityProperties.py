@@ -103,12 +103,18 @@ ap.add_argument(
   required=True,
   help="Sets URL of the Mauro API. e.g.'http://localhost:8082/api'"
 )
+ap.add_argument(
+  '-k',
+  '--mauro-api-key',
+  action='store',
+  required=True,
+  help="Sets API key for interacting with the Mauro API. Note that the API won't return 'bad key' - it only returns 404."
+)
 
 # -w --delete-word Sets a string that causes the property value to be 'deleted' (set to null). Default '##delete##'.
 # -n --delete-null Sets processing to to set property values to null when a null value is encountered. Default behaviour is to ignore incoming null values (retain any existing values, and not add null-value properties).
 # -b --always-branch Sets processing to always create a new branch of an entity when importing a file. Default behaviour is to Update current branch if 'draft', create a new branch if 'finalised'.
 
-# -k --mauro-api-key Sets API key for interacting with the Mauro API
 # -x --target-folder Sets target folder to process the incoming model data to.
 # -p --namespace Sets a default namespace for the incoming property keys. If you need to import to different namespaces, you can set the namespace per property in the incoming file. https://maurodatamapper.github.io/rest-api/resources/catalogue-item/#metadata
 args = ap.parse_args()                       
@@ -198,6 +204,14 @@ def make_null(v):
 def is_good_api_url(url):
   p = re.compile('^https?\:\/\/.*\/api\/?$')
   u = p.match(url)
+  if u :
+    return True
+  else :
+    return False
+
+def is_good_api_key(key):
+  p = re.compile('^[0-9a-f]{8}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{12}$', re.IGNORECASE)
+  u = p.match(key)
   if u :
     return True
   else :
@@ -300,16 +314,23 @@ for target_filename in files_to_process:
     #def get_api_target(db, schema, table, field):
     #  return 1
 
-    api_key = ''
-    #{{base_url}}/dataModels/path/dm%3ATestyMcTestface%7Cdc%3Asimple%7Cde%3Asimple%20data%20element
     api_base_url = args.mauro_url
     logger.info("Connecting to Mauro API at: " + str(api_base_url))
 
     if (is_good_api_url(api_base_url)) :
+      logger.debug("Incoming API URL looks good, creating interface.")
       mapi = MauroAPIInterface(api_base_url)
     else :
       crit_and_die("Given API URL appears to be bad.")
 
+    api_key = args.mauro_api_key
+    logger.debug("Incoming API key not logged, as it's secret.")
+
+    if (is_good_api_key(api_key)) :
+      logger.debug("Incoming API key looks good.")
+      mapi.api_key = api_key
+    else :
+      crit_and_die("Given API key appears to be bad. It should look like a UUID.")
 
     # requests.utils.quote('test+user@gmail.com')
     # {{base_url}}/dataModels/path/dm%3Amaurodatamapper%7Cdc%3Aapi_property << definitely exists
@@ -317,13 +338,7 @@ for target_filename in files_to_process:
     #api_url = api_base_url + '/dataModels/path/dm%3AFISH' # << definitely NOT exists
     #api_url = api_base_url + requests.utils.quote('/dataModels/path/dm:maurodatamapper|dc:core|dc:annotation|de:last_updated') # << works and exists
 
-    
 
-    print(mapi.api_key)
-    mapi.api_key = 'fish'
-    print(mapi.api_key)
-    print(mapi._api_key_header)
-    print(mapi.get_headers_for_get())
     r = mapi.call('dataModel/fish/&chips', 'GET')
 
     # Going to need to handle OK and not OK, as well as really not OK.
