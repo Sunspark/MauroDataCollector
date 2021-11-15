@@ -270,6 +270,29 @@ for target_filename in files_to_process:
   if not (('field' in headers) or (args.field)):
     crit_and_die("Essential header 'field' not found in incoming file.")
 
+  logger.debug('Essential headers ok.')
+
+  # Create override dictionary for rows
+  override_dict = {}
+  if args.db is not None:
+    logger.debug("Overriding db to '"+ str(args.db) + "'")
+    override_dict['db'] = args.db
+
+  if args.schema is not None:
+    logger.debug("Overriding schema to '"+ str(args.schema) + "'")
+    override_dict['schema'] = args.schema
+
+  if args.table is not None:
+    logger.debug("Overriding table to '"+ str(args.table) + "'")
+    override_dict['table'] = args.table
+
+  if args.field is not None:
+    logger.debug("Overriding field to '"+ str(args.field) + "'")
+    override_dict['field'] = args.field
+
+  logger.debug('Override dictionary created:')
+  logger.debug(override_dict)    
+
   # Create interface object for throwing things at the API
   api_base_url = args.mauro_url
   logger.info("Connecting to Mauro API at: " + str(api_base_url))
@@ -304,6 +327,31 @@ for target_filename in files_to_process:
     logger.debug("Post-nulling row dictionary:")
     logger.debug(row_dict)
 
+    # Apply Command-line overrides
+    row_dict = row_dict | override_dict
+    logger.debug("Post-override row dictionary:")
+    logger.debug(row_dict)
+
+    logger.debug("Attempting to find ID-based URL for:")
+    logger.debug("  'db': " + str(row_dict['db']))
+    logger.debug("  'schema': " + str(row_dict['schema']))
+    logger.debug("  'table': " + str(row_dict['table']))
+    logger.debug("  'field': " + str(row_dict['field']))
+
+    path_string = ''
+    if row_dict['db'] is not None :
+      path_string = path_string + "dm:" + str(row_dict['db'])
+      if row_dict['schema'] is not None :
+        path_string = path_string + "|dc:" + str(row_dict['schema'])
+      if row_dict['table'] is not None :
+        path_string = path_string + "|dc:" + str(row_dict['table'])
+      if row_dict['field'] is not None :
+        path_string = path_string + "|de:" + str(row_dict['field'])
+    else :
+      crit_and_die("Essential variable 'db' not provided.")
+    
+    logger.debug("Constructed path: " + path_string)
+
 
     # goes to the API, and figures out the ID-based URL to target, as well as POST/ PUT.
     # Returns dict {'target_url': target_url , 'http_method': (POST | PUT)}
@@ -316,11 +364,13 @@ for target_filename in files_to_process:
     #api_url = api_base_url + '/dataModels/path/dm%3AFISH' # << definitely NOT exists
     #api_url = api_base_url + requests.utils.quote('/dataModels/path/dm:maurodatamapper|dc:core|dc:annotation|de:last_updated') # << works and exists. also works without the quoting. ?does requests quote behind the scenes?
 
-    api_endpoint = '/dataModels/path/dm:maurodatamapper|dc:api_property'
+    api_endpoint = '/dataModels/path/'
+    api_endpoint_path = api_endpoint + path_string
+    print(api_endpoint_path)
     http_method = 'GET'
     logger.debug("Attempting call to endpoint: " + str(api_endpoint))
     logger.debug("With http method: " + str(http_method))
-    r = mapi.call(api_endpoint, http_method)
+    r = mapi.call(api_endpoint_path, http_method)
 
     # Going to need to handle OK and not OK, as well as really not OK.
     # as well as checking the result to see if the API was lying....
