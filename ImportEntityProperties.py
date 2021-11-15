@@ -201,21 +201,6 @@ def make_null(v):
   else:
     return v
 
-def is_good_api_url(url):
-  p = re.compile('^https?\:\/\/.*\/api\/?$')
-  u = p.match(url)
-  if u :
-    return True
-  else :
-    return False
-
-def is_good_api_key(key):
-  p = re.compile('^[0-9a-f]{8}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{4}\-[0-9a-f]{12}$', re.IGNORECASE)
-  u = p.match(key)
-  if u :
-    return True
-  else :
-    return False
 
 #####################################################################
 ## Actual program
@@ -317,20 +302,18 @@ for target_filename in files_to_process:
     api_base_url = args.mauro_url
     logger.info("Connecting to Mauro API at: " + str(api_base_url))
 
-    if (is_good_api_url(api_base_url)) :
-      logger.debug("Incoming API URL looks good, creating interface.")
+    try:
       mapi = MauroAPIInterface(api_base_url)
-    else :
-      crit_and_die("Given API URL appears to be bad.")
+    except ValueError as err :
+      err_and_die(err, "Could not create Mauro API interface")
 
     api_key = args.mauro_api_key
     logger.debug("Incoming API key not logged, as it's secret.")
 
-    if (is_good_api_key(api_key)) :
-      logger.debug("Incoming API key looks good.")
+    try:
       mapi.api_key = api_key
-    else :
-      crit_and_die("Given API key appears to be bad. It should look like a UUID.")
+    except ValueError as err :
+      err_and_die(err, "Given API key appears to be bad. It should look like a UUID.")
 
     # requests.utils.quote('test+user@gmail.com')
     # {{base_url}}/dataModels/path/dm%3Amaurodatamapper%7Cdc%3Aapi_property << definitely exists
