@@ -270,6 +270,21 @@ for target_filename in files_to_process:
   if not (('field' in headers) or (args.field)):
     crit_and_die("Essential header 'field' not found in incoming file.")
 
+  # Create interface object for throwing things at the API
+  api_base_url = args.mauro_url
+  logger.info("Connecting to Mauro API at: " + str(api_base_url))
+  try:
+    mapi = MauroAPIInterface(api_base_url)
+  except ValueError as err :
+    err_and_die(err, "Could not create Mauro API interface")
+
+  api_key = args.mauro_api_key
+  logger.debug("Incoming API key not logged, as it's secret.")
+  try:
+    mapi.api_key = api_key
+  except ValueError as err :
+    err_and_die(err, "Given API key appears to be bad. It should look like a UUID.")
+
   # Process incoming rows
   for incoming_row in incoming_rows:
     logger.debug('Process incoming row:')
@@ -290,8 +305,6 @@ for target_filename in files_to_process:
     logger.debug(row_dict)
 
 
-    # UGH - this is going to end up being 'write a Mauro interface class'.
-
     # goes to the API, and figures out the ID-based URL to target, as well as POST/ PUT.
     # Returns dict {'target_url': target_url , 'http_method': (POST | PUT)}
     # Note the http_method will never be DELETE, because 'delete' means null the value, not remove the entity.
@@ -299,30 +312,15 @@ for target_filename in files_to_process:
     #def get_api_target(db, schema, table, field):
     #  return 1
 
-    api_base_url = args.mauro_url
-    logger.info("Connecting to Mauro API at: " + str(api_base_url))
-
-    try:
-      mapi = MauroAPIInterface(api_base_url)
-    except ValueError as err :
-      err_and_die(err, "Could not create Mauro API interface")
-
-    api_key = args.mauro_api_key
-    logger.debug("Incoming API key not logged, as it's secret.")
-
-    try:
-      mapi.api_key = api_key
-    except ValueError as err :
-      err_and_die(err, "Given API key appears to be bad. It should look like a UUID.")
-
-    # requests.utils.quote('test+user@gmail.com')
-    # {{base_url}}/dataModels/path/dm%3Amaurodatamapper%7Cdc%3Aapi_property << definitely exists
-    #api_url = api_base_url + '/dataModels/path/dm%3Amaurodatamapper%7Cdc%3Aapi_property' # << definitely exists
+    #api_url = api_base_url + '/dataModels/path/dm%3Amaurodatamapper%7Cdc%3Aapi_property' # << definitely exists, GET (although the fact it exists is an error)
     #api_url = api_base_url + '/dataModels/path/dm%3AFISH' # << definitely NOT exists
-    #api_url = api_base_url + requests.utils.quote('/dataModels/path/dm:maurodatamapper|dc:core|dc:annotation|de:last_updated') # << works and exists
+    #api_url = api_base_url + requests.utils.quote('/dataModels/path/dm:maurodatamapper|dc:core|dc:annotation|de:last_updated') # << works and exists. also works without the quoting. ?does requests quote behind the scenes?
 
-
-    r = mapi.call('dataModel/fish/&chips', 'GET')
+    api_endpoint = '/dataModels/path/dm:maurodatamapper|dc:api_property'
+    http_method = 'GET'
+    logger.debug("Attempting call to endpoint: " + str(api_endpoint))
+    logger.debug("With http method: " + str(http_method))
+    r = mapi.call(api_endpoint, http_method)
 
     # Going to need to handle OK and not OK, as well as really not OK.
     # as well as checking the result to see if the API was lying....
