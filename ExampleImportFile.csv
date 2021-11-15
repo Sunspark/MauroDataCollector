@@ -1,2 +1,2 @@
-db,schema,table,field,description,my.cool.namespace.MSSQLDataType,my.cool.namespace.PKPosition,my.duff.namespace.FKPosition
-importDemo,null,WeatherObservations,LocationID,"The Location ID of the Observatory, joins to WeatherObservatoryLocations",int,pkName:1,fkName:1
+schema,table,field,description,my.cool.namespace.MSSQLDataType,my.cool.namespace.PKPosition,my.duff.namespace.FKPosition
+null,WeatherObservations,LocationID,"The Location ID of the Observatory, joins to WeatherObservatoryLocations",int,pkName:1,fkName:1

@@ -297,7 +297,7 @@ for target_filename in files_to_process:
   api_base_url = args.mauro_url
   logger.info("Connecting to Mauro API at: " + str(api_base_url))
   try:
-    mapi = MauroAPIInterface(api_base_url)
+    mapi = MauroAPIInterface(logger, api_base_url)
   except ValueError as err :
     err_and_die(err, "Could not create Mauro API interface")
 
@@ -352,6 +352,46 @@ for target_filename in files_to_process:
     
     logger.debug("Constructed path: " + path_string)
 
+    # Returns a dictionary :
+    #   'status_code' : The numeric status of the http response
+    #   'url_found' : True || False - was an appropriate URL found. Note that the API can return paths that don't match the incoming path.
+    #   'model_finalised' : True || False - Is the current head of the data model 'finalised'.
+    #   'id_based_url' : A string with the ID-based path to the entitiy
+    #   'r' : the requests library object, so that it can be bubbled up or interrogated
+    search_dict = mapi.find_id_based_url_by_path(path_string)
+
+    logger.debug(search_dict)
+
+    
+    if search_dict['status_code'] == 404 :
+      logger.error("Entity not found in Mauro. Entity update has been skipped.")
+      logger.error("Constructed path: " + path_string)
+      logger.error(search_dict)
+    elif search_dict['status_code'] == 200 :
+      logger.debug("Entity lookup code 200 OK.")
+
+      if search_dict['url_found'] is True :
+        logger.debug("Entity lookup code 200 OK, url_found:True")
+
+        if search_dict['model_finalised'] is False :
+          logger.debug("Entity lookup code 200 OK, url_found:True, model_finalised:False")
+    #200 good draft
+        else :
+          logger.debug("Entity lookup code 200 OK, url_found:True, model_finalised:True")
+    #200 good finalised
+
+      else :
+        logger.error("Entity lookup succeeded, but entity was bad. Entity update has been skipped.")
+        logger.error("Constructed path: " + path_string)
+        logger.error(search_dict)
+
+
+
+    else :
+      logger.error("Entity lookup failed for some reason. Entity update has been skipped.")
+      logger.error("Constructed path: " + path_string)
+      logger.error(search_dict)
+
 
     # goes to the API, and figures out the ID-based URL to target, as well as POST/ PUT.
     # Returns dict {'target_url': target_url , 'http_method': (POST | PUT)}
@@ -360,24 +400,12 @@ for target_filename in files_to_process:
     #def get_api_target(db, schema, table, field):
     #  return 1
 
-    #api_url = api_base_url + '/dataModels/path/dm%3Amaurodatamapper%7Cdc%3Aapi_property' # << definitely exists, GET (although the fact it exists is an error)
-    #api_url = api_base_url + '/dataModels/path/dm%3AFISH' # << definitely NOT exists
-    #api_url = api_base_url + requests.utils.quote('/dataModels/path/dm:maurodatamapper|dc:core|dc:annotation|de:last_updated') # << works and exists. also works without the quoting. ?does requests quote behind the scenes?
 
-    api_endpoint = '/dataModels/path/'
-    api_endpoint_path = api_endpoint + path_string
-    print(api_endpoint_path)
-    http_method = 'GET'
-    logger.debug("Attempting call to endpoint: " + str(api_endpoint))
-    logger.debug("With http method: " + str(http_method))
-    r = mapi.call(api_endpoint_path, http_method)
 
     # Going to need to handle OK and not OK, as well as really not OK.
     # as well as checking the result to see if the API was lying....
 
-    print(r.reason)
-    print(r.status_code)
-    print(r.text)
+
 
 
 
