@@ -1,2 +1,6 @@
-schema,table,field,description,my.cool.namespace.MSSQLDataType,my.cool.namespace.PKPosition,my.duff.namespace.FKPosition
-null,WeatherObservations,LocationID,"The Location ID of the Observatory, joins to WeatherObservatoryLocations",int,pkName:1,fkName:1
+db,schema,table,field,description,my.cool.namespace.MSSQLDataType,my.cool.namespace.PKPosition,my.duff.namespace.FKPosition
+hipster,null,WeatherObservations,LocationID,"The fish and chips of the Observatory, joins to WeatherObservatoryLocations",int,pkName:1,fkName:1
+maurodatamapper,core,annotation,last_updated,"Date row was last updated",null,null,null
+maurodatamapper,core,annotation,child_annotations_idx,"The index of the annotation amongst siblings",null,null,null
+maurodatamapper,core,annotation,created_by,"The Mauro username of the creator",null,null,null
+maurodatamapper,core,annotation,depth,"How deep is your love?",null,null,null

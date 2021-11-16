@@ -1,6 +1,7 @@
 import requests
 from urllib.parse import urljoin
 import re
+import json
 
 class MauroAPIInterface:
   def __init__(self, logger, api_base_url = None, api_key = None):
@@ -9,9 +10,12 @@ class MauroAPIInterface:
     self.api_key = api_key
     self.base_headers_for_get = {}
     self.base_headers_for_post = {}
-    self.base_headers_for_put = {}
+    self.base_headers_for_put = {
+      "Content-Type": "application/json",
+      "Content-Length": str(1)
+    }
 
-    # from: {{base_url}}/path/prefixMappings
+    # from: {{base_url}}/path/prefixMappings, Mauro version: 4.10.0
     self.path_prefix_mappings = {
         "ann": "Annotation",
         "api": "ApiProperty",
@@ -95,18 +99,23 @@ class MauroAPIInterface:
   def get_headers_for_get(self):
     return self.base_headers_for_get | self._api_key_header
 
+  def get_headers_for_put(self, call_body):
+    self.base_headers_for_put['Content-Length'] = str(len(call_body))
+    self.logger.debug(self.base_headers_for_put)
+    return self.base_headers_for_put | self._api_key_header    
+
   def get_api_url(self, endpoint_url):
     return urljoin(self.api_base_url.rstrip("/") + "/", endpoint_url.lstrip("/"))
     
   # requests.utils.quote('test+user@gmail.com')
   # It seems that requests quotes the URL internally.
-  def call(self, endpoint_url, call_method):
+  def call(self, endpoint_url, call_method, call_body = None):
     if (call_method == 'GET'):
       return requests.get(self.get_api_url(endpoint_url), headers = self.get_headers_for_get(), timeout=30)
     elif (call_method == 'POST'):
       raise FutureWarning("POST not yet implemented")
     elif (call_method == 'PUT'):
-      raise FutureWarning("PUT not yet implemented")
+      return requests.put(self.get_api_url(endpoint_url), data=call_body, headers = self.get_headers_for_put(call_body))
     elif (call_method == 'DELETE'):
       raise FutureWarning("DELETE not yet implemented")
     else:
@@ -140,7 +149,7 @@ class MauroAPIInterface:
     #api_url = api_base_url + requests.utils.quote('/dataModels/path/dm:maurodatamapper|dc:core|dc:annotation|de:last_updated') # << works and exists.
 
     api_endpoint = '/dataModels/path/'
-    api_endpoint_path = api_endpoint + path_to_entity
+    api_endpoint_path = api_endpoint + path_to_entity.lstrip("/")
     http_method = 'GET'
     self.logger.debug("Attempting call to endpoint: " + str(api_endpoint_path))
     self.logger.debug("With http method: " + str(http_method))
@@ -195,6 +204,10 @@ class MauroAPIInterface:
         self.logger.debug("Path list length (" + str(len(path_dict_list)) + ") did not match breadcrumb list length (" + str(len(breadcrumbs)) + ")")
         return return_dict
 
+      # Mauro 'get by ID' path is <modelID>/<nearest class to the entity>/<the entity>
+      # meaning you need to get the model, then the last two things in the path chain.
+      # but it still needs to go through the path to check the path is ok.
+      id_based_url_element_list = []
       for idx, val in enumerate(path_dict_list):
         self.logger.debug("Comparing item: " + str(idx))
         self.logger.debug(str(val['entity_type']) + " ?= " + str(breadcrumbs[idx]['domainType']))
@@ -206,22 +219,62 @@ class MauroAPIInterface:
         ):
           self.logger.debug("OK")
           
+
           # TODO this will need refactoring when other entities are required
           if breadcrumbs[idx]['domainType'] == 'DataModel' :
             # is the model finalised
             return_dict['model_finalised'] = breadcrumbs[idx]['finalised']
-            id_based_url = id_based_url + '/dataModels/' + breadcrumbs[idx]['id']
+            id_based_url_element_list.append('/dataModels/' + breadcrumbs[idx]['id'])
           elif breadcrumbs[idx]['domainType'] == 'DataClass' :
-            id_based_url = id_based_url + '/dataClasses/' + breadcrumbs[idx]['id']
+            id_based_url_element_list.append('/dataClasses/' + breadcrumbs[idx]['id'])
           elif breadcrumbs[idx]['domainType'] == 'DataElement' :
-            id_based_url = id_based_url + '/dataElements/' + breadcrumbs[idx]['id']            
+            id_based_url_element_list.append('/dataElements/' + breadcrumbs[idx]['id'])
         else :
           self.logger.debug("match failed")
           return return_dict
 
       # if the function hasn't returned, the path is ok
+      self.logger.debug("id_based_url_element_list")
+      self.logger.debug(id_based_url_element_list)
+
+      final_index = len(id_based_url_element_list)-1
+      id_based_url = id_based_url_element_list[0] + id_based_url_element_list[final_index-1] + id_based_url_element_list[final_index]
+
       return_dict['url_found'] = True
       return_dict['id_based_url'] = id_based_url
       return return_dict
 
+  # Takes a constructed path to an entity, suitable for the 'Edit Catalogue Item' endpoint of Mauro.
+  #   (https://maurodatamapper.github.io/rest-api/resources/catalogue-item/)
+  # Takes a string that will be updated onto the entity description.
+  # Returns a dictionary :
+  #   'status_code' : The numeric status of the http response
+  #   'reason' : the response 'reason'
+  #   'full_text' : the full response text
+  def update_entity_description_by_id_path(self, path_to_entity, new_description):
+    api_endpoint = '/'
+    api_endpoint_path = api_endpoint + path_to_entity.lstrip("/")
+    http_method = 'PUT'
+    self.logger.debug("Attempting call to endpoint: " + str(api_endpoint_path))
+    self.logger.debug("With http method: " + str(http_method))
+    
+    description_dict = {
+      "description" : str(new_description)
+    }
+    call_body = json.dumps(description_dict)
+    self.logger.debug("Call body:")
+    self.logger.debug(call_body)
+    
+    r = self.call(api_endpoint_path, http_method, call_body)
+
+    return_dict = {
+      'status_code' : r.status_code,
+      'reason' : r.reason,
+      'full_text' : r.text
+    }
+
+    self.logger.debug("Response status code: " + str(r.status_code))
+    self.logger.debug("Response text: " + r.text)
+
+    return return_dict
 

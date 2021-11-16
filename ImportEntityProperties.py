@@ -227,11 +227,16 @@ logger.debug(files_to_process)
 
 
 for target_filename in files_to_process:
+  file_process_info_dict = {
+    "rows_success" : 0,
+    "rows_fail" : 0
+  }
 
   # Get the CSV, and spin it to a list of lists.
   target_fullpath = os.path.join(args.incoming_dir, target_filename)
 
-  logger.info("Attempting to open: '" + target_fullpath + "'")
+  logger.info("###### Attempting to open: '" + target_fullpath + "'")
+  file_process_info_dict['target_fullpath'] = target_fullpath
 
   try:
     with open(target_fullpath) as csv_in:
@@ -243,11 +248,13 @@ for target_filename in files_to_process:
 
   headers = incoming_rows.pop(0) # Take the header row off
   logger.info("Count of incoming rows: " + str(len(incoming_rows)))
+  file_process_info_dict['incoming_row_count'] = str(len(incoming_rows))
 
   logger.debug("headers:")
   logger.info(headers)
   headers_count = len(headers)
   logger.info("Count of incoming headers: " + str(headers_count))
+  file_process_info_dict['incoming_header_count'] = str(headers_count)
 
   # Check we have unique headers
   duplicate_headers = list_duplicates(headers)
@@ -310,8 +317,8 @@ for target_filename in files_to_process:
 
   # Process incoming rows
   for incoming_row in incoming_rows:
-    logger.debug('Process incoming row:')
-    logger.debug(incoming_row)
+    logger.info('************ Process incoming row:')
+    logger.info(incoming_row)
 
     # Check field count is the same as headers.
     row_field_count = len(incoming_row)
@@ -357,16 +364,20 @@ for target_filename in files_to_process:
     #   'url_found' : True || False - was an appropriate URL found. Note that the API can return paths that don't match the incoming path.
     #   'model_finalised' : True || False - Is the current head of the data model 'finalised'.
     #   'id_based_url' : A string with the ID-based path to the entitiy
-    #   'r' : the requests library object, so that it can be bubbled up or interrogated
+    #   'full_text' : the request response text, so that it can be bubbled up or interrogated
     search_dict = mapi.find_id_based_url_by_path(path_string)
 
     logger.debug(search_dict)
 
-    
+
     if search_dict['status_code'] == 404 :
       logger.error("Entity not found in Mauro. Entity update has been skipped.")
       logger.error("Constructed path: " + path_string)
       logger.error(search_dict)
+      file_process_info_dict['rows_fail'] = file_process_info_dict['rows_fail'] + 1
+
+      # TODO Functionality for 'add if not found'
+
     elif search_dict['status_code'] == 200 :
       logger.debug("Entity lookup code 200 OK.")
 
@@ -374,25 +385,41 @@ for target_filename in files_to_process:
         logger.debug("Entity lookup code 200 OK, url_found:True")
 
         if search_dict['model_finalised'] is False :
+          #200 good draft
           logger.debug("Entity lookup code 200 OK, url_found:True, model_finalised:False")
-    #200 good draft
+
+          # Call the API to update the entity with new properties/ description.
+          if 'description' in row_dict :
+            description_update_dict = mapi.update_entity_description_by_id_path(search_dict['id_based_url'], row_dict['description'])
+
+            if description_update_dict['status_code'] == 200 :
+              logger.info("Entity description update succeeded.")
+              logger.debug(description_update_dict)
+              file_process_info_dict['rows_success'] = file_process_info_dict['rows_success'] + 1
+            else :
+              logger.error("Entity description update failed.")
+              logger.error(description_update_dict)
+              file_process_info_dict['rows_fail'] = file_process_info_dict['rows_fail'] + 1
         else :
           logger.debug("Entity lookup code 200 OK, url_found:True, model_finalised:True")
-    #200 good finalised
+          #200 good finalised
+          # TODO Functionality for 'make new draft'
+          logger.error("Entity lookup succeeded, but entity Functionality has not been implemented. Entity update has been skipped.")
+          file_process_info_dict['rows_fail'] = file_process_info_dict['rows_fail'] + 1
 
       else :
         logger.error("Entity lookup succeeded, but entity was bad. Entity update has been skipped.")
         logger.error("Constructed path: " + path_string)
         logger.error(search_dict)
-
-
+        file_process_info_dict['rows_fail'] = file_process_info_dict['rows_fail'] + 1
 
     else :
       logger.error("Entity lookup failed for some reason. Entity update has been skipped.")
       logger.error("Constructed path: " + path_string)
       logger.error(search_dict)
+      file_process_info_dict['rows_fail'] = file_process_info_dict['rows_fail'] + 1
 
-
+    logger.debug("---------------------------- Row processing complete --------------------------------")
     # goes to the API, and figures out the ID-based URL to target, as well as POST/ PUT.
     # Returns dict {'target_url': target_url , 'http_method': (POST | PUT)}
     # Note the http_method will never be DELETE, because 'delete' means null the value, not remove the entity.
@@ -406,7 +433,9 @@ for target_filename in files_to_process:
     # as well as checking the result to see if the API was lying....
 
 
-
+  logger.info("File process information:")
+  logger.info(file_process_info_dict)
+  logger.info("###### File process complete")
 
 
 
